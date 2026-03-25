@@ -90,7 +90,9 @@ pbl/
 └── ml-service/                 # Python FastAPI microservices
     ├── model/
     │   ├── train_model.py
-    │   ├── model_pipeline.pkl      ← trained XGBoost pipeline
+    │   ├── model.pkl               ← trained XGBoost classifier
+    │   ├── encoder.pkl             ← CategoricalEncoder (str → int)
+    │   ├── scaler.pkl              ← StandardScaler
     │   └── shap_explainer.pkl      ← TreeExplainer
     ├── utils/
     │   ├── preprocess.py           ← feature engineering
@@ -124,6 +126,7 @@ cd pbl
 
 ### 2. Set up the ML service
 
+#### macOS
 ```bash
 cd ml-service
 python3 -m venv venv
@@ -131,11 +134,24 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+#### Windows
+```bash
+cd ml-service
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
 If you need to retrain the model:
 ```bash
-python3 generate_synthetic_data.py
-python3 model/train_model.py
+python3 generate_synthetic_data.py   # macOS
+python  generate_synthetic_data.py   # Windows
+
+python3 model/train_model.py         # macOS
+python  model/train_model.py         # Windows
 ```
+
+> ⚠️ Retraining regenerates `model.pkl`, `encoder.pkl`, `scaler.pkl`, and `shap_explainer.pkl` inside `ml-service/model/`. All four files must be present for the services to start.
 
 ---
 
@@ -175,7 +191,9 @@ VITE_BACKEND_URL=http://localhost:5000
 
 ### 5. Run everything
 
-Open **5 terminals**:
+Open **5 terminals** and run each command from the root `pbl/` folder:
+
+#### macOS
 
 ```bash
 # Terminal 1 — MongoDB
@@ -189,6 +207,25 @@ cd ml-service && source venv/bin/activate && uvicorn main:app --reload --port 80
 
 # Terminal 4 — SHAP Service
 cd ml-service && source venv/bin/activate && uvicorn shap_service:app --reload --port 8001
+
+# Terminal 5 — Frontend
+cd frontend && npm run dev
+```
+
+#### Windows
+
+```bash
+# Terminal 1 — MongoDB (run as Administrator)
+net start MongoDB
+
+# Terminal 2 — Backend
+cd backend && npm run server
+
+# Terminal 3 — ML Service
+cd ml-service && venv\Scripts\activate && uvicorn main:app --reload --port 8000
+
+# Terminal 4 — SHAP Service
+cd ml-service && venv\Scripts\activate && uvicorn shap_service:app --reload --port 8001
 
 # Terminal 5 — Frontend
 cd frontend && npm run dev
@@ -246,14 +283,14 @@ Open **http://localhost:5556** in your browser.
 | dti_ratio (derived) | Numeric |
 | loan_to_income (derived) | Numeric |
 | has_coapplicant | Numeric (0/1) |
-| employment_type | Categorical (OHE) |
-| city_tier | Categorical (OHE) |
+| employment_type | Categorical (label-encoded) |
+| city_tier | Categorical (label-encoded) |
 
 ### Model
 
 - **Algorithm**: XGBoost Classifier
-- **Pipeline**: `ColumnTransformer(StandardScaler + OneHotEncoder)` → `XGBClassifier`
-- **Explainability**: SHAP `TreeExplainer` — collapses OHE features back to original column names
+- **Artifacts**: `encoder.pkl` (CategoricalEncoder: str → int) → `scaler.pkl` (StandardScaler) → `model.pkl` (XGBClassifier)
+- **Explainability**: SHAP `TreeExplainer` on scaled input — SHAP values mapped 1:1 back to original feature names
 
 ### Risk Categories
 
@@ -313,7 +350,7 @@ Hard rejection rules run **before** ML scoring:
 
 > This is an **advisory system**, not a lender. All loan eligibility assessments are based on mock rules and a model trained on synthetic data. Results do not represent actual bank decisions. No real credit bureau data is used.
 
-
+---
 
 ## ⛓️ Blockchain Audit & Data Integrity (Live)
 
@@ -336,6 +373,7 @@ The `mlExplanation` object used for this decentralized anchor looks like:
   "ipfsHash": "QmfQh3D4wA5GQwm6bBstHXD2Ygi97C5WQ7yQ2a6Psj5wLB"
 }
 ```
+
 ---
 
 ## 👥 Team
