@@ -314,6 +314,7 @@ Hard rejection rules run **before** ML scoring:
 > This is an **advisory system**, not a lender. All loan eligibility assessments are based on mock rules and a model trained on synthetic data. Results do not represent actual bank decisions. No real credit bureau data is used.
 
 
+
 ## ⛓️ Blockchain Audit & Data Integrity (Live)
 
 Every loan eligibility check and its corresponding SHAP explanation data (`summary`, `topPositive`, `topNegative`, `baseValue`) is now anchored to the **Ethereum Sepolia Testnet** via **IPFS**. This ensures that the decision logic is immutable and verifiable.
@@ -334,6 +335,8 @@ The `mlExplanation` object used for this decentralized anchor looks like:
   "blockchainTxHash": "0x621b557a5cd8d839e98dd0062ce1cb172de4bd91f1b84699eb56945ba1088349",
   "ipfsHash": "QmfQh3D4wA5GQwm6bBstHXD2Ygi97C5WQ7yQ2a6Psj5wLB"
 }
+
+---
 
 ## 👥 Team
 
