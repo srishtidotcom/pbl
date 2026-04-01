@@ -16,7 +16,8 @@ import numpy as np
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, roc_auc_score, classification_report, confusion_matrix
-from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
+import lightgbm as lgb
 import joblib
 
 from utils.preprocess import CategoricalEncoder, FEATURE_COLUMNS, NUMERIC_COLUMNS, CATEGORICAL_COLUMNS
@@ -61,14 +62,17 @@ scaler    = StandardScaler()
 X_train_s = scaler.fit_transform(X_train)
 X_test_s  = scaler.transform(X_test)
 
-# ── 5. Train XGBoost ───────────────────────────────────────────────────────────
-print("🚀 Training XGBoost …")
-model = XGBClassifier(
+# ── 5. Train LightGBM ──────────────────────────────────────────────────────────
+print("🚀 Training LightGBM …")
+model = LGBMClassifier(
     n_estimators=300, max_depth=6, learning_rate=0.05,
     subsample=0.8, colsample_bytree=0.8,
-    eval_metric="logloss", random_state=42, n_jobs=-1,
+    objective='binary', metric='binary_logloss',
+    boosting_type='gbdt', num_leaves=31,
+    random_state=42, n_jobs=-1, verbose=-1,
 )
-model.fit(X_train_s, y_train, eval_set=[(X_test_s, y_test)], verbose=False)
+model.fit(X_train_s, y_train, eval_set=[(X_test_s, y_test)],
+          callbacks=[lgb.log_evaluation(period=0)])
 
 # ── 6. Evaluate ────────────────────────────────────────────────────────────────
 y_pred  = model.predict(X_test_s)
@@ -87,7 +91,7 @@ joblib.dump(scaler,  os.path.join(MODEL_DIR, "scaler.pkl"))
 joblib.dump(encoder, os.path.join(MODEL_DIR, "encoder.pkl"))
 
 meta = {
-    "model_type": "XGBClassifier", "version": "1.0.0",
+    "model_type": "LGBMClassifier", "version": "1.0.0",
     "feature_columns": FEATURE_COLUMNS, "numeric_columns": NUMERIC_COLUMNS,
     "categorical_columns": CATEGORICAL_COLUMNS, "n_features": len(FEATURE_COLUMNS),
     "trained_at": datetime.utcnow().isoformat() + "Z",

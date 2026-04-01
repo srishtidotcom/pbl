@@ -1,6 +1,6 @@
 # 🏦 LoanSense — AI-Powered Loan Eligibility Advisor
 
-> An intelligent loan eligibility assessment platform combining rule-based decision engines, XGBoost ML scoring, SHAP explainability, blockchain-anchored audit trails, and a curated loan product recommendation engine — built as a full-stack MERN + Python microservices project.
+> An intelligent loan eligibility assessment platform combining rule-based decision engines, LightGBM ML scoring, SHAP explainability, blockchain-anchored audit trails, and a curated loan product recommendation engine — built as a full-stack MERN + Python microservices project.
 
 ---
 
@@ -9,7 +9,7 @@
 LoanSense helps users understand their loan eligibility **before** they apply to a bank. Instead of a black-box yes/no, it gives:
 
 - ✅ **Rule-based hard eligibility checks** (FOIR, LTV, credit score thresholds)
-- 🤖 **ML-based probability scoring** (XGBoost trained on synthetic financial data)
+- 🤖 **ML-based probability scoring** (LightGBM trained on synthetic financial data)
 - 🔍 **SHAP explainability** — "Why was I approved/rejected?" with top contributing factors
 - 📊 **Approved loan offer** — max amount, tenure, interest rate, EMI
 - ⛓️ **Blockchain audit trail** — every decision pinned to IPFS and anchored on Ethereum Sepolia
@@ -42,7 +42,7 @@ Supports 5 loan types: Personal, Home, Education, Vehicle, Business.
 ┌─────────▼──────┐  ┌────────▼───────┐
 │   ML Service   │  │  SHAP Service  │
 │  FastAPI :8000 │  │  FastAPI :8001 │
-│   XGBoost      │  │ TreeExplainer  │
+│   LightGBM      │  │ TreeExplainer  │
 └────────────────┘  └────────────────┘
 ```
 
@@ -114,7 +114,7 @@ pbl/
 └── ml-service/                 # Python FastAPI microservices
     ├── model/
     │   ├── train_model.py
-    │   ├── model.pkl               ← trained XGBoost classifier
+    │   ├── model.pkl               ← trained LightGBM classifier
     │   ├── encoder.pkl             ← CategoricalEncoder (str → int)
     │   ├── scaler.pkl              ← StandardScaler
     │   └── shap_explainer.pkl      ← TreeExplainer
@@ -440,8 +440,8 @@ Admin sessions do not interfere with user sessions.
 
 ### Model
 
-- **Algorithm**: XGBoost Classifier
-- **Artifacts**: `encoder.pkl` (CategoricalEncoder: str → int) → `scaler.pkl` (StandardScaler) → `model.pkl` (XGBClassifier)
+- **Algorithm**: LightGBM Classifier
+- **Artifacts**: `encoder.pkl` (CategoricalEncoder: str → int) → `scaler.pkl` (StandardScaler) → `model.pkl` (LGBMClassifier)
 - **Explainability**: SHAP `TreeExplainer` on scaled input — SHAP values mapped 1:1 back to original feature names
 
 ### Risk Categories
@@ -521,7 +521,7 @@ The audit payload anchored on-chain looks like:
 | Backend | Node.js, Express 5, MongoDB, Mongoose |
 | Auth | JWT, bcrypt |
 | Validation | Zod |
-| ML | XGBoost, scikit-learn, SHAP |
+| ML | LightGBM, scikit-learn, SHAP |
 | ML API | FastAPI, Uvicorn |
 | File Upload | Cloudinary, Multer |
 | Blockchain | Ethers.js v6, Ethereum Sepolia, Pinata IPFS |
