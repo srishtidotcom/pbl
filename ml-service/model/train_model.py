@@ -17,6 +17,7 @@ from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, roc_auc_score, classification_report, confusion_matrix
 from lightgbm import LGBMClassifier
+import lightgbm as lgb
 import joblib
 
 from utils.preprocess import CategoricalEncoder, FEATURE_COLUMNS, NUMERIC_COLUMNS, CATEGORICAL_COLUMNS
@@ -70,7 +71,8 @@ model = LGBMClassifier(
     boosting_type='gbdt', num_leaves=31,
     random_state=42, n_jobs=-1, verbose=-1,
 )
-model.fit(X_train_s, y_train, eval_set=[(X_test_s, y_test)])
+model.fit(X_train_s, y_train, eval_set=[(X_test_s, y_test)],
+          callbacks=[lgb.log_evaluation(period=0)])
 
 # ── 6. Evaluate ────────────────────────────────────────────────────────────────
 y_pred  = model.predict(X_test_s)
