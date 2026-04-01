@@ -16,7 +16,7 @@ from utils.risk import get_risk_category, get_verdict, get_confidence_label
 
 app = FastAPI(
     title="Loan Eligibility ML Service",
-    description="XGBoost pipeline-based loan eligibility prediction",
+    description="LightGBM pipeline-based loan eligibility prediction",
     version="1.0.0",
 )
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
