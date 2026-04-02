@@ -2,9 +2,11 @@
 shap_service.py  –  SHAP Explainability Microservice
 Port: 8001
 Uses: model/model.pkl + model/shap_explainer.pkl + model/encoder.pkl + model/scaler.pkl
+Artifacts are auto-downloaded from Hugging Face on first startup.
 """
 
 import os
+import urllib.request
 import joblib
 import numpy as np
 import pandas as pd
@@ -24,9 +26,35 @@ app = FastAPI(
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
-# ── Load artifacts ─────────────────────────────────────────────────────────────
-MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
+# ── Artifact registry ──────────────────────────────────────────────────────────
+HF_BASE = "https://huggingface.co/Shravni123/loansense-artifacts/resolve/main"
 
+ARTIFACTS: dict[str, str] = {
+    "model.pkl":          f"{HF_BASE}/model.pkl",
+    "encoder.pkl":        f"{HF_BASE}/encoder.pkl",
+    "scaler.pkl":         f"{HF_BASE}/scaler.pkl",
+    "shap_explainer.pkl": f"{HF_BASE}/shap_explainer.pkl",
+}
+
+MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+# ── Download any missing artifacts ────────────────────────────────────────────
+for filename, url in ARTIFACTS.items():
+    dest = os.path.join(MODEL_DIR, filename)
+    if os.path.exists(dest):
+        print(f"✅ {filename} already present, skipping download.")
+        continue
+    print(f"⬇️  Downloading {filename} from Hugging Face …")
+    urllib.request.urlretrieve(url, dest)
+    if not os.path.exists(dest):
+        raise RuntimeError(
+            f"Download failed for '{filename}'. "
+            f"Check that {url} is publicly accessible."
+        )
+    print(f"✅ {filename} saved → {dest}")
+
+# ── Load artifacts ─────────────────────────────────────────────────────────────
 try:
     pipeline  = joblib.load(os.path.join(MODEL_DIR, "model.pkl"))
     explainer = joblib.load(os.path.join(MODEL_DIR, "shap_explainer.pkl"))
@@ -34,7 +62,7 @@ try:
     scaler    = joblib.load(os.path.join(MODEL_DIR, "scaler.pkl"))
     print("✅ All artifacts loaded")
 except FileNotFoundError as e:
-    raise RuntimeError(f"Artifact not found: {e}")
+    raise RuntimeError(f"Artifact not found after download attempt: {e}")
 
 # Since there's no OHE pipeline, feature names stay as-is after encoding
 TRANSFORMED_FEATURE_NAMES = FEATURE_COLUMNS
