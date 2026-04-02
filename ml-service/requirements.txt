@@ -5,7 +5,6 @@ click==8.3.1
 cloudpickle==3.1.2
 Faker==40.11.0
 fastapi==0.135.1
-gdown==5.2.0
 h11==0.16.0
 idna==3.11
 joblib==1.5.3

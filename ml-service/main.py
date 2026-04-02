@@ -1,16 +1,16 @@
 """
 main.py  –  ML Prediction Microservice
 Port: 8000
-Artifacts (auto-downloaded from Google Drive on first startup):
-  model/model.pkl    – XGBoost pipeline
-  model/encoder.pkl  – categorical encoder
-  model/scaler.pkl   – feature scaler
-  model/shap.pkl     – SHAP explainer
+Artifacts (auto-downloaded from Hugging Face on first startup):
+  model/model.pkl          – XGBoost classifier
+  model/encoder.pkl        – CategoricalEncoder (str → int)
+  model/scaler.pkl         – StandardScaler
+  model/shap_explainer.pkl – SHAP TreeExplainer
 """
 
 import os, json
+import urllib.request
 import joblib
-import gdown
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -32,29 +32,30 @@ app.add_middleware(
 )
 
 # ── Artifact registry ──────────────────────────────────────────────────────────
-# filename → Google Drive file ID
-GDRIVE_ARTIFACTS: dict[str, str] = {
-    "model.pkl":   "13TbPwtwZx-JJCTX71pct1e7BqGsar2sj",
-    "scaler.pkl":  "1mXrnnB7OfeWH_hjAvQQrE8EFEw1KqClq",
-    "encoder.pkl": "1zHXiGI4zKbgdd4wJUP4v2e5Of1dlaf8g",
-    "shap.pkl":    "1EAgc2rvP8S-0D4ji0oKNiPBdO7kaSDuV",
+HF_BASE = "https://huggingface.co/Shravni123/loansense-artifacts/resolve/main"
+
+ARTIFACTS: dict[str, str] = {
+    "model.pkl":          f"{HF_BASE}/model.pkl",
+    "encoder.pkl":        f"{HF_BASE}/encoder.pkl",
+    "scaler.pkl":         f"{HF_BASE}/scaler.pkl",
+    "shap_explainer.pkl": f"{HF_BASE}/shap_explainer.pkl",
 }
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # ── Download any missing artifacts ────────────────────────────────────────────
-for filename, file_id in GDRIVE_ARTIFACTS.items():
+for filename, url in ARTIFACTS.items():
     dest = os.path.join(MODEL_DIR, filename)
     if os.path.exists(dest):
         print(f"✅ {filename} already present, skipping download.")
         continue
-    print(f"⬇️  Downloading {filename} from Google Drive …")
-    gdown.download(id=file_id, output=dest, quiet=False, fuzzy=True)
+    print(f"⬇️  Downloading {filename} from Hugging Face …")
+    urllib.request.urlretrieve(url, dest)
     if not os.path.exists(dest):
         raise RuntimeError(
-            f"Download failed for '{filename}' (Drive ID: {file_id}). "
-            "Ensure the file is shared as 'Anyone with the link can view'."
+            f"Download failed for '{filename}'. "
+            f"Check that {url} is publicly accessible."
         )
     print(f"✅ {filename} saved → {dest}")
 
@@ -63,7 +64,7 @@ try:
     pipeline  = joblib.load(os.path.join(MODEL_DIR, "model.pkl"))
     encoder   = joblib.load(os.path.join(MODEL_DIR, "encoder.pkl"))
     scaler    = joblib.load(os.path.join(MODEL_DIR, "scaler.pkl"))
-    explainer = joblib.load(os.path.join(MODEL_DIR, "shap.pkl"))
+    explainer = joblib.load(os.path.join(MODEL_DIR, "shap_explainer.pkl"))
     print("✅ All artifacts loaded successfully.")
 except FileNotFoundError as e:
     raise RuntimeError(f"Artifact not found after download attempt: {e}")
