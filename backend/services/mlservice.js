@@ -46,7 +46,17 @@ async function getFullMLResult(profile, requestedLoanAmount, tenureMonths, hasCo
         getMLExplanation(payload),
     ]);
 
-    return { prediction, explanation };
+    // Map snake_case SHAP response → camelCase for frontend
+    const mappedExplanation = {
+        verdict:          explanation.verdict,
+        summary:          explanation.summary,
+        topPositive:      explanation.top_positive,
+        topNegative:      explanation.top_negative,
+        allContributions: explanation.all_contributions,
+        baseValue:        explanation.base_value,
+    };
+
+    return { prediction, explanation: mappedExplanation };
 }
 
 module.exports = { getFullMLResult };

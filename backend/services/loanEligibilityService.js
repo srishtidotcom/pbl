@@ -2,7 +2,7 @@ const { getFullMLResult } = require('./mlservice');
 const LoanEligibilityCheck = require('../models/LoanEligibilityCheck');
 const FinancialProfile = require('../models/FinancialProfile');
 const { recordDataOnChain } = require('./blockchainservice');
-const { getRecommendedProductsService } = require('./loanProductService');   // ← new
+const { getRecommendedProductsService } = require('./loanProductService');
 
 // --- Helpers ---
 const calculateTotalMonthlyObligations = (profile) => {
@@ -18,44 +18,53 @@ const calculateEMI = (principal, annualRatePercent, tenureMonths) => {
     return (principal * r * Math.pow(1 + r, tenureMonths)) / (Math.pow(1 + r, tenureMonths) - 1);
 };
 
-// ML scoring — calls Python microservices
+// ML scoring + SHAP explanation — single call to Python microservices
 const computeMLScores = async (profile, requestedLoanAmount, tenureMonths, hasCoApplicant) => {
     try {
-        const { prediction } = await getFullMLResult(profile, requestedLoanAmount, tenureMonths, hasCoApplicant);
+        const { prediction, explanation } = await getFullMLResult(
+            profile, requestedLoanAmount, tenureMonths, hasCoApplicant
+        );
         return {
             eligibilityScore: prediction.score,
-            riskScore: prediction.risk_score,
-            mlPrediction: prediction,
-            mlAvailable: true,
+            riskScore:        prediction.risk_score,
+            mlPrediction:     prediction,
+            mlExplanation:    explanation,   // already fetched — no second SHAP call needed
+            mlAvailable:      true,
         };
     } catch (err) {
         console.warn("ML service unavailable, using fallback scores:", err.message);
-        return { eligibilityScore: 50, riskScore: 50, mlPrediction: null, mlAvailable: false };
+        return {
+            eligibilityScore: 50,
+            riskScore:        50,
+            mlPrediction:     null,
+            mlExplanation:    null,
+            mlAvailable:      false,
+        };
     }
 };
 
 // Offer generation
 const LOAN_TYPE_CONFIG = {
-    "Personal Loan": { baseRate: 12, maxTenureMonths: 60, maxAmount: 4000000 },
-    "Education Loan": { baseRate: 9, maxTenureMonths: 120, maxAmount: 10000000 },
-    "Home Loan": { baseRate: 8, maxTenureMonths: 300, maxAmount: 100000000 },
-    "Vehicle Loan": { baseRate: 10, maxTenureMonths: 84, maxAmount: 10000000 },
-    "Business Loan": { baseRate: 14, maxTenureMonths: 60, maxAmount: 20000000 },
+    "Personal Loan":  { baseRate: 12, maxTenureMonths: 60,  maxAmount: 4000000   },
+    "Education Loan": { baseRate: 9,  maxTenureMonths: 120, maxAmount: 10000000  },
+    "Home Loan":      { baseRate: 8,  maxTenureMonths: 300, maxAmount: 100000000 },
+    "Vehicle Loan":   { baseRate: 10, maxTenureMonths: 84,  maxAmount: 10000000  },
+    "Business Loan":  { baseRate: 14, maxTenureMonths: 60,  maxAmount: 20000000  },
 };
 
 const generateOffer = (requestedLoanAmount, loanType, eligibilityScore, riskScore) => {
     const config = LOAN_TYPE_CONFIG[loanType];
-    const riskPremium = riskScore > 70 ? 3 : riskScore > 50 ? 2 : riskScore > 30 ? 1 : 0;
-    const approvedRate = config.baseRate + riskPremium;
+    const riskPremium      = riskScore > 70 ? 3 : riskScore > 50 ? 2 : riskScore > 30 ? 1 : 0;
+    const approvedRate     = config.baseRate + riskPremium;
     const amountMultiplier = riskScore > 70 ? 0.6 : riskScore > 50 ? 0.75 : riskScore > 30 ? 0.9 : 1;
-    const approvedAmount = Math.min(Math.round(requestedLoanAmount * amountMultiplier), config.maxAmount);
+    const approvedAmount   = Math.min(Math.round(requestedLoanAmount * amountMultiplier), config.maxAmount);
     const tenureMultiplier = eligibilityScore > 70 ? 1 : eligibilityScore > 50 ? 0.85 : 0.7;
-    const approvedTenure = Math.round(config.maxTenureMonths * tenureMultiplier);
-    const emi = Math.round(calculateEMI(approvedAmount, approvedRate, approvedTenure));
+    const approvedTenure   = Math.round(config.maxTenureMonths * tenureMultiplier);
+    const emi              = Math.round(calculateEMI(approvedAmount, approvedRate, approvedTenure));
 
     return {
-        maxApprovedLoanAmount: approvedAmount,
-        maxApprovedTenureMonths: approvedTenure,
+        maxApprovedLoanAmount:          approvedAmount,
+        maxApprovedTenureMonths:        approvedTenure,
         maxApprovedInterestRatePercent: approvedRate,
         emi,
     };
@@ -63,9 +72,9 @@ const generateOffer = (requestedLoanAmount, loanType, eligibilityScore, riskScor
 
 // Rule engine — hard rejections
 const runRuleEngine = (profile, requestedLoanAmount, loanType) => {
-    const rejectionReasons = [];
-    const totalObligations = calculateTotalMonthlyObligations(profile);
-    const income = profile.monthlyNetIncome;
+    const rejectionReasons   = [];
+    const totalObligations   = calculateTotalMonthlyObligations(profile);
+    const income             = profile.monthlyNetIncome;
 
     if (profile.creditScore === 0 && loanType !== "Education Loan") {
         rejectionReasons.push("No credit history found. A credit score is required.");
@@ -99,91 +108,70 @@ const createLoanEligibilityCheckService = async (userID, data) => {
     if (!profile) throw new Error("Financial profile not found.");
 
     const rejectionReasons = runRuleEngine(profile, requestedLoanAmount, loanType);
-    const eligible = rejectionReasons.length === 0;
+    const eligible         = rejectionReasons.length === 0;
 
     const defaultTenure = {
         "Personal Loan": 60, "Education Loan": 120,
-        "Home Loan": 240, "Vehicle Loan": 84, "Business Loan": 60,
+        "Home Loan": 240,    "Vehicle Loan": 84, "Business Loan": 60,
     };
-    const tenureMonths = defaultTenure[loanType];
-    const hasCoApplicant = !!loanDetails.coApplicant;
+    const tenureMonths    = defaultTenure[loanType];
+    const hasCoApplicant  = !!loanDetails.coApplicant;
 
-    const { eligibilityScore, riskScore, mlPrediction, mlAvailable } =
+    // Single call — returns both prediction AND explanation
+    const { eligibilityScore, riskScore, mlPrediction, mlExplanation: rawExplanation, mlAvailable } =
         await computeMLScores(profile, requestedLoanAmount, tenureMonths, hasCoApplicant);
 
-    // SHAP explanation
-    let mlExplanation = null;
-    if (mlAvailable) {
-        try {
-            const axios = require('axios');
-            const payload = {
-                age: profile.age,
-                employment_type: profile.employmentType,
-                city_tier: profile.cityTier,
-                has_coapplicant: hasCoApplicant ? 1 : 0,
-                monthly_income: profile.monthlyNetIncome,
-                credit_score: profile.creditScore,
-                total_existing_emi: calculateTotalMonthlyObligations(profile),
-                requested_loan_amount: requestedLoanAmount,
-                loan_tenure_months: tenureMonths,
-                work_experience_years: profile.employmentTenureMonths / 12,
-            };
-            const { data: shapData } = await axios.post(
-                (process.env.SHAP_SERVICE_URL || 'http://localhost:8001') + '/explain',
-                payload,
-                { timeout: 15000 },
-            );
-            mlExplanation = shapData;
-        } catch (e) {
-            console.warn("SHAP service unavailable:", e.message);
-        }
-    }
+    // Map snake_case SHAP response → camelCase for DB storage
+    const mlExplanation = rawExplanation ? {
+        summary:     rawExplanation.summary,
+        topPositive: rawExplanation.top_positive,
+        topNegative: rawExplanation.top_negative,
+        baseValue:   rawExplanation.base_value,
+    } : null;
 
     // Build results
     let results = {
         eligible,
         rejectionReasons,
         eligibilityScore: eligible ? eligibilityScore : null,
-        riskScore: eligible ? riskScore : null,
-        riskCategory: null,
-        maxApprovedLoanAmount: null,
-        maxApprovedTenureMonths: null,
+        riskScore:        eligible ? riskScore        : null,
+        riskCategory:     null,
+        maxApprovedLoanAmount:          null,
+        maxApprovedTenureMonths:        null,
         maxApprovedInterestRatePercent: null,
-        emi: null,
+        emi:              null,
     };
 
     if (eligible) {
         const riskCategory =
             riskScore <= 20 ? "Very Low" :
-                riskScore <= 40 ? "Low" :
-                    riskScore <= 60 ? "Medium" :
-                        riskScore <= 80 ? "High" : "Very High";
+            riskScore <= 40 ? "Low"      :
+            riskScore <= 60 ? "Medium"   :
+            riskScore <= 80 ? "High"     : "Very High";
 
         const offer = generateOffer(requestedLoanAmount, loanType, eligibilityScore, riskScore);
         results = { eligible: true, rejectionReasons: [], eligibilityScore, riskScore, riskCategory, ...offer };
     }
 
-    // ── Recommended Products ───────────────────────────────────────────────────
-    // Run recommendation engine — returns [] for rejected applications
+    // Recommended Products
     let recommendedProducts = [];
     try {
         const raw = await getRecommendedProductsService(results, profile, loanType);
-        // Shape into the snapshot schema stored on the check document
         recommendedProducts = raw.map(p => ({
-            productId: p._id,
-            bankName: p.bankName,
-            productName: p.productName,
-            logoUrl: p.logoUrl || null,
-            description: p.description,
-            features: p.features,
-            loanType: p.loanType,
-            minAmount: p.minAmount,
-            maxAmount: p.maxAmount,
+            productId:       p._id,
+            bankName:        p.bankName,
+            productName:     p.productName,
+            logoUrl:         p.logoUrl || null,
+            description:     p.description,
+            features:        p.features,
+            loanType:        p.loanType,
+            minAmount:       p.minAmount,
+            maxAmount:       p.maxAmount,
             minInterestRate: p.minInterestRate,
             maxInterestRate: p.maxInterestRate,
             minTenureMonths: p.minTenureMonths,
             maxTenureMonths: p.maxTenureMonths,
-            fitScore: p.fitScore,
+            fitScore:        p.fitScore,
         }));
         console.log(`✅ Recommended ${recommendedProducts.length} loan product(s) for user ${userID}`);
     } catch (recErr) {
@@ -193,15 +181,15 @@ const createLoanEligibilityCheckService = async (userID, data) => {
     // Blockchain audit payload
     const auditData = {
         userID,
-        timestamp: new Date().toISOString(),
+        timestamp:       new Date().toISOString(),
         loanType,
         requestedAmount: requestedLoanAmount,
         eligible,
-        mlVerdict: mlPrediction ? mlPrediction.verdict : (eligible ? "Manual Approval" : "Rule Rejection"),
-        shapSummary: mlExplanation ? mlExplanation.summary : "No explanation available",
+        mlVerdict:       mlPrediction ? mlPrediction.verdict : (eligible ? "Manual Approval" : "Rule Rejection"),
+        shapSummary:     mlExplanation ? mlExplanation.summary : "No explanation available",
     };
 
-    // Save to DB first (need real _id for blockchain anchor)
+    // Save to DB
     const check = await LoanEligibilityCheck.create({
         userID,
         requestedLoanAmount,
@@ -209,23 +197,18 @@ const createLoanEligibilityCheckService = async (userID, data) => {
         loanDetails,
         results,
         mlResult: mlPrediction ? {
-            probability: mlPrediction.probability,
-            score: mlPrediction.score,
-            riskScore: mlPrediction.risk_score,
+            probability:  mlPrediction.probability,
+            score:        mlPrediction.score,
+            riskScore:    mlPrediction.risk_score,
             riskCategory: mlPrediction.risk_category,
-            verdict: mlPrediction.verdict,
-            confidence: mlPrediction.confidence,
+            verdict:      mlPrediction.verdict,
+            confidence:   mlPrediction.confidence,
         } : null,
-        mlExplanation: mlExplanation ? {
-            summary: mlExplanation.summary,
-            topPositive: mlExplanation.top_positive,
-            topNegative: mlExplanation.top_negative,
-            baseValue: mlExplanation.base_value,
-        } : null,
-        recommendedProducts,   // ← persisted with the check
+        mlExplanation,
+        recommendedProducts,
     });
 
-    // Anchor to blockchain using real MongoDB _id
+    // Anchor to blockchain
     try {
         console.log("🚀 Starting Blockchain Anchor for User:", userID);
         const anchorResult = await recordDataOnChain(check._id.toString(), auditData);
