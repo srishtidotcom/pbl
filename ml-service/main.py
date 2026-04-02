@@ -126,7 +126,7 @@ def model_info():
 def predict(data: LoanInput):
     try:
         df       = preprocess_input(data.dict())       # raw DataFrame
-        df_enc   = encoder.transform(df)               # categorical → numeric
+        df_enc   = encoder.transform_df(df)            # categorical → numeric
         X_scaled = scaler.transform(df_enc)            # scale numerics
         prob     = float(pipeline.predict_proba(X_scaled)[0][1])
 
