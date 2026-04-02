@@ -1,9 +1,48 @@
+# =========================
+# 🐍 Python (ML Service)
+# =========================
 ml-service/venv/
-ml-service/model/model_pipeline.pkl
-ml-service/model/shap_explainer.pkl
-ml-service/model/model.pkl
-ml-service/model/scaler.pkl
-ml-service/model/encoder.pkl
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ML model artifacts
+ml-service/model/*.pkl
+ml-service/model/meta.json
+
+# Generated datasets
 ml-service/synthetic_loan_data.csv
+
+# =========================
+# 🟢 Node.js (Backend & Frontend)
+# =========================
 backend/node_modules/
 frontend/node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# 🔐 Environment files
+# =========================
+.env
+*.env
+*.env.*
+backend/.env.save
+
+# =========================
+# 🧠 OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# 📦 Misc
+# =========================
+dist/
+build/

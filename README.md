@@ -536,5 +536,5 @@ The audit payload anchored on-chain looks like:
 
 ## 👥 Team
 
-Built as part of a Project-Based Learning (PBL) assignment
+Built as the offcial submission to Project-Based Learning (PBL) Lab
 by Srishti Pandey, Tejas Khadilkar and Shravni Thakur.
