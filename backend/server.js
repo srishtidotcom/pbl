@@ -44,7 +44,9 @@ app.get('/api/verify-loan/:id', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
 // run server
 app.listen(port, () => {
     console.log('App running on port ' + port)
