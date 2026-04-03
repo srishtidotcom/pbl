@@ -179,6 +179,28 @@ python model/train_model.py
 
 > ⚠️ Retraining regenerates `model.pkl`, `encoder.pkl`, `scaler.pkl`, and `shap_explainer.pkl` inside `ml-service/model/`. All four files must be present for the services to start.
 
+#### Running the XGBoost vs LightGBM comparison
+
+To systematically compare both models under identical conditions (same data, same split, same hyper-parameters):
+
+```bash
+# install xgboost in addition to the existing requirements
+pip install xgboost matplotlib
+
+# run from the ml-service root
+python3 model/compare_models.py
+```
+
+The script trains both models fresh (or loads cached `model_xgb.pkl` / `model_lgbm.pkl` on subsequent runs), then prints:
+- Accuracy, ROC-AUC, F1-score for each model
+- Inference latency (ms on test set)
+- Training time
+- SHAP feature importance ranking side-by-side
+- Prediction correlation and class-agreement %
+- Saves `model/roc_curves.png` and `model/feature_importance.png`
+
+Pass `--no-plots` to skip plot generation.
+
 ---
 
 ### 3. Set up the backend
